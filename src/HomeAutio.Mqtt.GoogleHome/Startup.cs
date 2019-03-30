@@ -7,6 +7,7 @@ using System.Security.Cryptography.X509Certificates;
 using Easy.MessageHub;
 using HomeAutio.Mqtt.GoogleHome.App_Start;
 using HomeAutio.Mqtt.GoogleHome.Identity;
+using HomeAutio.Mqtt.GoogleHome.Identity.MongoStore;
 using HomeAutio.Mqtt.GoogleHome.IntentHandlers;
 using HomeAutio.Mqtt.GoogleHome.Models;
 using HomeAutio.Mqtt.GoogleHome.Models.GoogleHomeGraph;
@@ -143,7 +144,9 @@ namespace HomeAutio.Mqtt.GoogleHome
                 .SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
 
             // Identity Server 4
-            services.AddSingleton<IPersistedGrantStoreWithExpiration, PersistedGrantStore>();
+            // Set up the grant store:
+            var grantStoreType = GetConfiguredGrantStoreType();
+            services.AddSingleton(typeof(IPersistedGrantStoreWithExpiration), grantStoreType);
             services.AddSingleton<IPersistedGrantStore>(x => x.GetRequiredService<IPersistedGrantStoreWithExpiration>());
 
             var publicOrigin = Configuration.GetValue<string>("oauth:publicOrigin");
@@ -251,6 +254,31 @@ namespace HomeAutio.Mqtt.GoogleHome
                     template: "{controller=GoogleDevice}/{action=Index}/{id?}");
             });
             app.UseIdentityServer();
+        }
+
+        /// <summary>
+        /// Gets the grant store type based on the oauth:tokenStore:type value.
+        /// </summary>
+        private Type GetConfiguredGrantStoreType()
+        {
+            var grantStoreTypeConfig = Configuration.GetValue<string>("oauth:tokenStore:type");
+
+            // Support the old grant store config for now...
+            var deprecatedTokenStoreFileValue = Configuration.GetValue<string>("oauth:tokenStoreFile");
+            if (deprecatedTokenStoreFileValue != null)
+            {
+                grantStoreTypeConfig = "file";
+            }
+
+            switch (grantStoreTypeConfig.ToLowerInvariant())
+            {
+                case "file":
+                    return typeof(PersistedGrantStore);
+                case "mongo":
+                    return typeof(MongoPersistedGrantStore);
+                default:
+                    throw new InvalidOperationException("Grant store type could not be determined. Ensure the oauth:tokenStore configuration value is set and has a valid type property.");
+            }
         }
     }
 }

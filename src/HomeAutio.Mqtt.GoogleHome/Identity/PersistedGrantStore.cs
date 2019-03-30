@@ -36,8 +36,14 @@ namespace HomeAutio.Mqtt.GoogleHome.Identity
             _log = logger ?? throw new ArgumentException(nameof(logger));
             if (configuration == null)
                 throw new ArgumentException(nameof(configuration));
+                
+            _file = configuration.GetValue<string>("oauth:tokenStore:tokenStoreFile");
 
-            _file = configuration.GetValue<string>("oauth:tokenStoreFile");
+            // Handle deprecated config path for now...
+            if (_file == null)
+                _file = configuration.GetValue<string>("oauth:tokenStoreFile");
+
+            _log.LogInformation("Setting up Persisted Grant Store using file: " + _file);
             RestoreFromFile();
         }
 
